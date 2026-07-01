@@ -1,5 +1,6 @@
 package ai.timefold.solver.core.impl.solver;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +11,8 @@ import java.util.function.Supplier;
 import ai.timefold.solver.core.api.domain.common.PlanningId;
 import ai.timefold.solver.core.api.domain.solution.PlanningSolution;
 import ai.timefold.solver.core.api.solver.Solver;
+import ai.timefold.solver.core.api.solver.SolverResult;
+import ai.timefold.solver.core.api.solver.SolverRunInfo;
 import ai.timefold.solver.core.api.solver.change.ProblemChange;
 import ai.timefold.solver.core.api.solver.event.EventProducerId;
 import ai.timefold.solver.core.config.solver.EnvironmentMode;
@@ -102,6 +105,12 @@ public class DefaultSolver<Solution_> extends AbstractSolver<Solution_> {
         return solverScope.getMoveEvaluationSpeed();
     }
 
+    private SolverRunInfo createSolverRunInfo() {
+        return new SolverRunInfo(Duration.ofMillis(getTimeMillisSpent()), getScoreCalculationCount(),
+                getMoveEvaluationCount(), getScoreCalculationSpeed(), getMoveEvaluationSpeed(),
+                solverScope.getProblemSizeStatistics(), solverScope.getSolverTerminationInfo());
+    }
+
     @Override
     public boolean isSolving() {
         return solving.get();
@@ -152,6 +161,11 @@ public class DefaultSolver<Solution_> extends AbstractSolver<Solution_> {
 
     @Override
     public final Solution_ solve(Solution_ problem) {
+        return solveAndGetResult(problem).solution();
+    }
+
+    @Override
+    public final SolverResult<Solution_> solveAndGetResult(Solution_ problem) {
         // No tags for these metrics; they are global
         var solveLengthTimer = Metrics.more().longTaskTimer(SolverMetric.SOLVE_DURATION.getMeterId());
         var errorCounter = Metrics.counter(SolverMetric.ERROR_COUNT.getMeterId());
@@ -180,8 +194,10 @@ public class DefaultSolver<Solution_> extends AbstractSolver<Solution_> {
             }
             restartSolver = checkProblemChanges();
         }
+        var bestSolution = solverScope.getBestSolution();
+        var solverRunInfo = createSolverRunInfo();
         outerSolvingEnded(solverScope);
-        return solverScope.getBestSolution();
+        return new SolverResult<>(bestSolution, solverRunInfo);
     }
 
     public void outerSolvingStarted(SolverScope<Solution_> solverScope) {

@@ -7,6 +7,8 @@ import java.util.random.RandomGenerator;
 
 import ai.timefold.solver.core.api.domain.solution.PlanningSolution;
 import ai.timefold.solver.core.api.solver.Solver;
+import ai.timefold.solver.core.api.solver.SolverTerminationInfo;
+import ai.timefold.solver.core.api.solver.SolverTerminationType;
 import ai.timefold.solver.core.api.solver.event.SolverEventListener;
 import ai.timefold.solver.core.impl.phase.Phase;
 import ai.timefold.solver.core.impl.phase.event.PhaseLifecycleListener;
@@ -17,6 +19,7 @@ import ai.timefold.solver.core.impl.solver.event.SolverEventSupport;
 import ai.timefold.solver.core.impl.solver.random.DefaultRandomSource;
 import ai.timefold.solver.core.impl.solver.recaller.BestSolutionRecaller;
 import ai.timefold.solver.core.impl.solver.scope.SolverScope;
+import ai.timefold.solver.core.impl.solver.termination.TerminationInfoSupport;
 import ai.timefold.solver.core.impl.solver.termination.UniversalTermination;
 
 import org.jspecify.annotations.NullMarked;
@@ -81,11 +84,26 @@ public abstract class AbstractSolver<Solution_> implements Solver<Solution_> {
         if (!solverScope.getSolutionDescriptor().hasMovableEntities(solverScope.getScoreDirector())) {
             logger.info("Skipped all phases ({}): out of {} planning entities, none are movable (non-pinned).",
                     phaseList.size(), solverScope.getWorkingEntityCount());
+            solverScope.setSolverTerminationInfo(SolverTerminationInfo.phasesCompleted());
             return;
         }
         Iterator<Phase<Solution_>> it = phaseList.iterator();
-        while (!globalTermination.isSolverTerminated(solverScope) && it.hasNext()) {
+        while (true) {
+            if (globalTermination.isSolverTerminated(solverScope)) {
+                solverScope.setSolverTerminationInfo(
+                        TerminationInfoSupport.buildSolverTerminationInfo(globalTermination, solverScope));
+                break;
+            }
+            if (!it.hasNext()) {
+                var currentTerminationInfo = solverScope.getSolverTerminationInfo();
+                solverScope.setSolverTerminationInfo(
+                        currentTerminationInfo.isTerminatedBy(SolverTerminationType.NOT_TERMINATED)
+                                ? SolverTerminationInfo.phasesCompleted()
+                                : currentTerminationInfo);
+                break;
+            }
             Phase<Solution_> phase = it.next();
+            solverScope.setSolverTerminationInfo(SolverTerminationInfo.notTerminated());
             phase.solve(solverScope);
             // If there is a next phase, it starts from the best solution, which might differ from the working solution.
             // If there isn't, no need to planning clone the best solution to the working solution.

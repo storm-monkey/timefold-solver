@@ -16,6 +16,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import ai.timefold.solver.core.api.solver.Solver;
+import ai.timefold.solver.core.api.solver.SolverResult;
+import ai.timefold.solver.core.api.solver.SolverRunInfo;
 import ai.timefold.solver.core.api.solver.change.ProblemChange;
 import ai.timefold.solver.core.api.solver.event.EventProducerId;
 import ai.timefold.solver.core.api.solver.event.NewBestSolutionEvent;
@@ -87,7 +89,7 @@ class ConsumerSupportTest {
         consumeIntermediateBestSolution(TestdataSolution.generateSolution());
         assertThat(futureProblemChange).isNotCompleted();
         TestdataSolution finalBestSolution = TestdataSolution.generateSolution();
-        consumerSupport.consumeFinalBestSolution(finalBestSolution);
+        consumerSupport.consumeFinalBestSolution(new SolverResult<>(finalBestSolution, SolverRunInfo.empty()));
         futureProblemChange.get();
         assertThat(finalBestSolutionRef.get()).isSameAs(finalBestSolution);
         assertThat(futureProblemChange).isCompleted();
@@ -127,7 +129,8 @@ class ConsumerSupportTest {
         assertThat(futureProblemChange).isNotCompleted();
 
         CompletableFuture<Void> pendingProblemChange = addProblemChange(bestSolutionHolder);
-        consumerSupport.consumeFinalBestSolution(TestdataSolution.generateSolution());
+        consumerSupport.consumeFinalBestSolution(
+                new SolverResult<>(TestdataSolution.generateSolution(), SolverRunInfo.empty()));
         futureProblemChange.get();
         assertThat(futureProblemChange).isCompleted();
 

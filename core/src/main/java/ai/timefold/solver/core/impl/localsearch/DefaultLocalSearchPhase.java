@@ -82,13 +82,18 @@ public class DefaultLocalSearchPhase<Solution_> extends AbstractPhase<Solution_>
                     solverScope.getMonitoringTags(), selectedMoveCountPerStep);
         }
 
-        while (!phaseTermination.isPhaseTerminated(phaseScope)) {
+        while (true) {
+            if (phaseTermination.isPhaseTerminated(phaseScope)) {
+                recordPhaseTermination(phaseScope);
+                break;
+            }
             var stepScope = new LocalSearchStepScope<>(phaseScope);
             stepScope.setTimeGradient(phaseTermination.calculatePhaseTimeGradient(phaseScope));
             stepStarted(stepScope);
             decider.decideNextStep(stepScope);
             if (stepScope.getStep() == null) {
                 if (phaseTermination.isPhaseTerminated(phaseScope)) {
+                    recordPhaseTermination(phaseScope);
                     logger.trace("{}    Step index ({}), time spent ({}) terminated without picking a nextStep.",
                             logIndentation,
                             stepScope.getStepIndex(),

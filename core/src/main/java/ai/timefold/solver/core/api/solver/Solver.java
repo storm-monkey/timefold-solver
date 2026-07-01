@@ -45,6 +45,18 @@ public interface Solver<Solution_> {
     Solution_ solve(Solution_ problem);
 
     /**
+     * Solves the planning problem and returns the best solution encountered
+     * together with metadata collected during solving.
+     *
+     * @param problem a {@link PlanningSolution}, usually its planning variables are uninitialized
+     * @return never null
+     * @see #solve(Object)
+     */
+    default SolverResult<Solution_> solveAndGetResult(Solution_ problem) {
+        return new SolverResult<>(solve(problem), SolverRunInfo.empty());
+    }
+
+    /**
      * Notifies the solver that it should stop at its earliest convenience.
      * This method returns immediately, but it takes an undetermined time
      * for the {@link #solve} to actually return.

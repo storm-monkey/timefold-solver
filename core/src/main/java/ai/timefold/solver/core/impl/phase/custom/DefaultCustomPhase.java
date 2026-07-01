@@ -63,6 +63,7 @@ public final class DefaultCustomPhase<Solution_>
             var customPhaseCommand = iterator.next();
             solverScope.checkYielding();
             if (phaseTermination.isPhaseTerminated(phaseScope)) {
+                recordPhaseTermination(phaseScope);
                 earlyTerminationStatus = TerminationStatus.early(phaseScope.getNextStepIndex());
                 break;
             }

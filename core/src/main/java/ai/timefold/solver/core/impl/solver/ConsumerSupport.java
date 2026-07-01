@@ -9,6 +9,8 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
+import ai.timefold.solver.core.api.solver.SolverResult;
+import ai.timefold.solver.core.api.solver.SolverRunInfo;
 import ai.timefold.solver.core.api.solver.event.EventProducerId;
 import ai.timefold.solver.core.api.solver.event.FinalBestSolutionEvent;
 import ai.timefold.solver.core.api.solver.event.FirstInitializedSolutionEvent;
@@ -163,7 +165,8 @@ final class ConsumerSupport<Solution_, ProblemId_> implements AutoCloseable {
                 initialSolution.get());
     }
 
-    void consumeFinalBestSolution(Solution_ solution) { // Called on the Solver thread, after solving is finished.
+    void consumeFinalBestSolution(SolverResult<Solution_> solverResult) {
+        // Called on the Solver thread, after solving is finished.
         try {
             acquireAll();
         } catch (InterruptedException e) {
@@ -176,14 +179,14 @@ final class ConsumerSupport<Solution_, ProblemId_> implements AutoCloseable {
         if (bestSolutionConsumer != null) {
             scheduleIntermediateBestSolutionConsumption();
         }
-        scheduleFinalBestSolutionConsumption(solution)
+        scheduleFinalBestSolutionConsumption(solverResult)
                 .whenComplete((unused, throwable) -> releaseAll());
     }
 
-    private CompletableFuture<Void> scheduleFinalBestSolutionConsumption(Solution_ solution) {
+    private CompletableFuture<Void> scheduleFinalBestSolutionConsumption(SolverResult<Solution_> solverResult) {
         return CompletableFuture.runAsync(() -> {
             try {
-                finalBestSolutionConsumer.accept(new FinalBestSolutionEventImpl<>(solution));
+                finalBestSolutionConsumer.accept(new FinalBestSolutionEventImpl<>(solverResult));
             } catch (Throwable throwable) {
                 exceptionHandler.accept(problemId, throwable);
             }
@@ -246,7 +249,19 @@ final class ConsumerSupport<Solution_, ProblemId_> implements AutoCloseable {
             boolean isTerminatedEarly) implements FirstInitializedSolutionEvent<Solution_> {
     }
 
-    record FinalBestSolutionEventImpl<Solution_>(Solution_ solution) implements FinalBestSolutionEvent<Solution_> {
+    record FinalBestSolutionEventImpl<Solution_>(SolverResult<Solution_> solverResult)
+            implements
+                FinalBestSolutionEvent<Solution_> {
+
+        @Override
+        public Solution_ solution() {
+            return solverResult.solution();
+        }
+
+        @Override
+        public SolverRunInfo solverRunInfo() {
+            return solverResult.solverRunInfo();
+        }
     }
 
     record SolverJobStartedEventImpl<Solution_>(Solution_ solution) implements SolverJobStartedEvent<Solution_> {

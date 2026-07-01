@@ -88,6 +88,7 @@ public class DefaultConstructionHeuristicPhase<Solution_>
             decider.decideNextStep(stepScope, moveRepository.iterator());
             if (stepScope.getStep() == null) {
                 if (phaseTermination.isPhaseTerminated(phaseScope)) {
+                    recordPhaseTermination(phaseScope);
                     var logLevel = Level.TRACE;
                     if (decider.isLoggingEnabled() && logger.isEnabledForLevel(logLevel)) {
                         logger.atLevel(logLevel).log(
@@ -119,6 +120,7 @@ public class DefaultConstructionHeuristicPhase<Solution_>
                 earlyTerminationStatus = TerminationStatus.regular(phaseScope.getNextStepIndex());
                 break;
             } else if (phaseTermination.isPhaseTerminated(phaseScope)) {
+                recordPhaseTermination(phaseScope);
                 earlyTerminationStatus = TerminationStatus.early(phaseScope.getNextStepIndex());
                 break;
             }

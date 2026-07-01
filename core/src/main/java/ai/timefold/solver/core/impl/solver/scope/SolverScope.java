@@ -17,6 +17,7 @@ import ai.timefold.solver.core.api.domain.solution.PlanningSolution;
 import ai.timefold.solver.core.api.score.Score;
 import ai.timefold.solver.core.api.solver.ProblemSizeStatistics;
 import ai.timefold.solver.core.api.solver.Solver;
+import ai.timefold.solver.core.api.solver.SolverTerminationInfo;
 import ai.timefold.solver.core.config.solver.monitoring.SolverMetric;
 import ai.timefold.solver.core.impl.domain.solution.descriptor.SolutionDescriptor;
 import ai.timefold.solver.core.impl.phase.scope.AbstractPhaseScope;
@@ -42,6 +43,8 @@ public class SolverScope<Solution_> {
 
     // Solution-derived fields have the potential for race conditions.
     private final AtomicReference<ProblemSizeStatistics> problemSizeStatistics = new AtomicReference<>();
+    private final AtomicReference<SolverTerminationInfo> solverTerminationInfo =
+            new AtomicReference<>(SolverTerminationInfo.notTerminated());
     private final AtomicReference<Solution_> bestSolution = new AtomicReference<>();
     private final AtomicReference<InnerScore<?>> bestScore = new AtomicReference<>();
     private final AtomicLong startingSystemTimeMillis = resetAtomicLongTimeMillis(new AtomicLong());
@@ -276,6 +279,7 @@ public class SolverScope<Solution_> {
         startingSystemTimeMillis.set(getClock().millis());
         resetAtomicLongTimeMillis(endingSystemTimeMillis);
         this.moveEvaluationCount = 0L;
+        solverTerminationInfo.set(SolverTerminationInfo.notTerminated());
     }
 
     public Long getBestSolutionTimeMillisSpent() {
@@ -313,6 +317,14 @@ public class SolverScope<Solution_> {
 
     public void setProblemSizeStatistics(ProblemSizeStatistics problemSizeStatistics) {
         this.problemSizeStatistics.set(problemSizeStatistics);
+    }
+
+    public SolverTerminationInfo getSolverTerminationInfo() {
+        return solverTerminationInfo.get();
+    }
+
+    public void setSolverTerminationInfo(SolverTerminationInfo solverTerminationInfo) {
+        this.solverTerminationInfo.set(Objects.requireNonNull(solverTerminationInfo));
     }
 
     /**

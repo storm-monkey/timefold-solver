@@ -21,7 +21,11 @@ import ai.timefold.solver.core.api.domain.solution.PlanningSolution;
 import ai.timefold.solver.core.api.solver.ProblemSizeStatistics;
 import ai.timefold.solver.core.api.solver.Solver;
 import ai.timefold.solver.core.api.solver.SolverJob;
+import ai.timefold.solver.core.api.solver.SolverResult;
+import ai.timefold.solver.core.api.solver.SolverRunInfo;
 import ai.timefold.solver.core.api.solver.SolverStatus;
+import ai.timefold.solver.core.api.solver.SolverTerminationInfo;
+import ai.timefold.solver.core.api.solver.SolverTerminationType;
 import ai.timefold.solver.core.api.solver.change.ProblemChange;
 import ai.timefold.solver.core.api.solver.event.BestSolutionChangedEvent;
 import ai.timefold.solver.core.api.solver.event.FinalBestSolutionEvent;
@@ -67,6 +71,7 @@ public final class DefaultSolverJob<Solution_> implements SolverJob<Solution_>, 
     private final AtomicReference<@Nullable ProblemSizeStatistics> temporaryProblemSizeStatistics = new AtomicReference<>();
     private final AtomicReference<SolverStatus> solverStatus = new AtomicReference<>(SolverStatus.SOLVING_SCHEDULED);
     private final AtomicReference<@Nullable Future<Solution_>> finalBestSolutionFuture = new AtomicReference<>();
+    private final AtomicReference<@Nullable SolverResult<Solution_>> finalBestSolutionResult = new AtomicReference<>();
     private final AtomicReference<@Nullable ConsumerSupport<Solution_, Object>> consumerSupport = new AtomicReference<>();
 
     public DefaultSolverJob(DefaultSolverManager<Solution_> solverManager, Solver<Solution_> solver, Object problemId,
@@ -139,9 +144,10 @@ public final class DefaultSolverJob<Solution_> implements SolverJob<Solution_>, 
             // add a phase lifecycle listener once when the solver starts its execution
             solver.addPhaseLifecycleListener(new StartSolverJobPhaseLifecycleListener(currentConsumerSupport));
             solver.addEventListener(this::onBestSolutionChangedEvent);
-            final var finalBestSolution = solver.solve(problem);
-            currentConsumerSupport.consumeFinalBestSolution(finalBestSolution);
-            return finalBestSolution;
+            var solverResult = solver.solveAndGetResult(problem);
+            finalBestSolutionResult.set(solverResult);
+            currentConsumerSupport.consumeFinalBestSolution(solverResult);
+            return solverResult.solution();
         } catch (Throwable e) {
             exceptionHandler.accept(problemId, e);
             bestSolutionHolder.cancelPendingChanges();
@@ -270,6 +276,11 @@ public final class DefaultSolverJob<Solution_> implements SolverJob<Solution_>, 
 
     @Override
     public Solution_ getFinalBestSolution() throws InterruptedException, ExecutionException {
+        return getFinalBestSolutionResult().solution();
+    }
+
+    @Override
+    public SolverResult<Solution_> getFinalBestSolutionResult() throws InterruptedException, ExecutionException {
         try {
             var future = finalBestSolutionFuture.get();
             if (future == null) { // We set this; we messed up.
@@ -277,17 +288,33 @@ public final class DefaultSolverJob<Solution_> implements SolverJob<Solution_>, 
                         "Impossible state: the finalBestSolutionFuture is not set yet for problemId (%s)."
                                 .formatted(problemId));
             }
-            return future.get();
+            var finalBestSolution = future.get();
+            var solverResult = finalBestSolutionResult.get();
+            if (solverResult == null) {
+                return new SolverResult<>(finalBestSolution, createSolverRunInfo());
+            }
+            return solverResult;
         } catch (CancellationException cancellationException) {
             LOGGER.debug(
                     "terminateEarly() has been called before the solver job started solving. Retrieving the input problem instead.");
-            return problemFinder.apply(problemId);
+            return new SolverResult<>(problemFinder.apply(problemId), createTerminatedEarlySolverRunInfo());
         }
     }
 
     @Override
     public Duration getSolvingDuration() {
         return Duration.ofMillis(solver.getTimeMillisSpent());
+    }
+
+    private SolverRunInfo createSolverRunInfo() {
+        return new SolverRunInfo(getSolvingDuration(), getScoreCalculationCount(), getMoveEvaluationCount(),
+                getScoreCalculationSpeed(), getMoveEvaluationSpeed(), getProblemSizeStatistics(),
+                solver.getSolverScope().getSolverTerminationInfo());
+    }
+
+    private SolverRunInfo createTerminatedEarlySolverRunInfo() {
+        return new SolverRunInfo(Duration.ZERO, 0L, 0L, 0L, 0L, null,
+                new SolverTerminationInfo(SolverTerminationType.TERMINATE_EARLY));
     }
 
     @Override

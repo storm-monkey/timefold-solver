@@ -1,11 +1,13 @@
 package ai.timefold.solver.core.impl.solver.termination;
 
+import ai.timefold.solver.core.api.solver.SolverTerminationInfo;
 import ai.timefold.solver.core.impl.localsearch.decider.acceptor.simulatedannealing.SimulatedAnnealingAcceptor;
 import ai.timefold.solver.core.impl.phase.Phase;
 import ai.timefold.solver.core.impl.phase.scope.AbstractPhaseScope;
 import ai.timefold.solver.core.impl.phase.scope.AbstractStepScope;
 
 import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Determines when a {@link Phase} should stop.
@@ -47,6 +49,10 @@ public sealed interface PhaseTermination<Solution_>
      *         At the start of a solver t is 0.0 and at the end t would be 1.0.
      */
     double calculatePhaseTimeGradient(AbstractPhaseScope<Solution_> phaseScope);
+
+    default @Nullable SolverTerminationInfo getPhaseTerminationInfo(AbstractPhaseScope<Solution_> phaseScope) {
+        return TerminationInfoSupport.buildTriggeredPhaseTerminationInfo(this, phaseScope);
+    }
 
     void phaseStarted(AbstractPhaseScope<Solution_> phaseScope);
 

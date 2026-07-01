@@ -17,7 +17,9 @@ import java.util.Arrays;
 import ai.timefold.solver.core.config.constructionheuristic.ConstructionHeuristicPhaseConfig;
 import ai.timefold.solver.core.config.localsearch.LocalSearchPhaseConfig;
 import ai.timefold.solver.core.config.phase.custom.CustomPhaseConfig;
+import ai.timefold.solver.core.config.solver.EnvironmentMode;
 import ai.timefold.solver.core.config.solver.SolverConfig;
+import ai.timefold.solver.core.config.solver.termination.TerminationCompositionStyle;
 import ai.timefold.solver.core.config.solver.termination.TerminationConfig;
 import ai.timefold.solver.core.impl.phase.PossiblyInitializingPhase;
 import ai.timefold.solver.core.impl.score.DummySimpleScoreEasyScoreCalculator;
@@ -138,6 +140,62 @@ class SolverFactoryTest {
         SolverFactory<TestdataSolution> solverFactory = SolverFactory.create(solverConfig);
         var solver = solverFactory.buildSolver();
         assertThat(solver).isNotNull();
+    }
+
+    @Test
+    void solveAndGetResult() {
+        var terminationConfig = new TerminationConfig()
+                .withScoreCalculationCountLimit(5L);
+        var solverConfig = PlannerTestUtils.buildSolverConfig(TestdataSolution.class, TestdataEntity.class)
+                .withEnvironmentMode(EnvironmentMode.NO_ASSERT)
+                .withTerminationConfig(terminationConfig);
+        var solverFactory = SolverFactory.<TestdataSolution> create(solverConfig);
+        var solver = solverFactory.buildSolver();
+
+        var solverResult = solver.solveAndGetResult(PlannerTestUtils.generateTestdataSolution("s1"));
+        var solverRunInfo = solverResult.solverRunInfo();
+
+        assertThat(solverResult.solution()).isNotNull();
+        assertThat(solverRunInfo.terminationInfo().isTerminatedBy(SolverTerminationType.SCORE_CALCULATION_COUNT)).isTrue();
+        assertThat(solverRunInfo.scoreCalculationCount()).isEqualTo(5L);
+        assertThat(solverRunInfo.moveEvaluationCount()).isEqualTo(4L);
+        assertThat(solverRunInfo.solvingDuration()).isGreaterThanOrEqualTo(Duration.ZERO);
+    }
+
+    @Test
+    void solveAndGetResultAfterPhaseTermination() {
+        var solverConfig = PlannerTestUtils.buildSolverConfig(TestdataSolution.class, TestdataEntity.class)
+                .withEnvironmentMode(EnvironmentMode.NO_ASSERT)
+                .withPhases(new LocalSearchPhaseConfig()
+                        .withTerminationConfig(new TerminationConfig().withStepCountLimit(0)));
+        var solverFactory = SolverFactory.<TestdataSolution> create(solverConfig);
+        var solver = solverFactory.buildSolver();
+        var problem = PlannerTestUtils.generateTestdataSolution("s1");
+        problem.getEntityList().forEach(entity -> entity.setValue(problem.getValueList().getFirst()));
+
+        var solverResult = solver.solveAndGetResult(problem);
+        var solverRunInfo = solverResult.solverRunInfo();
+
+        assertThat(solverRunInfo.terminationInfo().isTerminatedBy(SolverTerminationType.STEP_COUNT)).isTrue();
+    }
+
+    @Test
+    void solveAndGetResultAfterAndCompositeTermination() {
+        var terminationConfig = new TerminationConfig()
+                .withTerminationCompositionStyle(TerminationCompositionStyle.AND)
+                .withScoreCalculationCountLimit(5L)
+                .withMoveCountLimit(4L);
+        var solverConfig = PlannerTestUtils.buildSolverConfig(TestdataSolution.class, TestdataEntity.class)
+                .withEnvironmentMode(EnvironmentMode.NO_ASSERT)
+                .withTerminationConfig(terminationConfig);
+        var solverFactory = SolverFactory.<TestdataSolution> create(solverConfig);
+        var solver = solverFactory.buildSolver();
+
+        var solverResult = solver.solveAndGetResult(PlannerTestUtils.generateTestdataSolution("s1"));
+        var terminationTypeList = solverResult.solverRunInfo().terminationInfo().terminationTypeList();
+
+        assertThat(terminationTypeList)
+                .containsExactlyInAnyOrder(SolverTerminationType.SCORE_CALCULATION_COUNT, SolverTerminationType.MOVE_COUNT);
     }
 
     @Test

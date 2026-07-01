@@ -87,6 +87,18 @@ public interface SolverJob<Solution_> {
     Solution_ getFinalBestSolution() throws InterruptedException, ExecutionException;
 
     /**
+     * Waits if necessary for the solver to complete and then returns the final best {@link PlanningSolution}
+     * together with metadata collected during solving.
+     *
+     * @return never null
+     * @throws InterruptedException if the current thread was interrupted while waiting
+     * @throws ExecutionException if the computation threw an exception
+     */
+    default SolverResult<Solution_> getFinalBestSolutionResult() throws InterruptedException, ExecutionException {
+        return new SolverResult<>(getFinalBestSolution(), SolverRunInfo.empty());
+    }
+
+    /**
      * Returns the {@link Duration} spent solving since the last start.
      * If it hasn't started it yet, it returns {@link Duration#ZERO}.
      * If it hasn't ended yet, it returns the time between the last start and now.

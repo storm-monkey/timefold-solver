@@ -3,6 +3,7 @@ package ai.timefold.solver.core.api.solver;
 import static ai.timefold.solver.core.api.solver.SolverStatus.NOT_SOLVING;
 import static ai.timefold.solver.core.api.solver.SolverStatus.SOLVING_ACTIVE;
 import static ai.timefold.solver.core.api.solver.SolverStatus.SOLVING_SCHEDULED;
+import static ai.timefold.solver.core.api.solver.SolverTerminationType.SCORE_CALCULATION_COUNT;
 import static ai.timefold.solver.core.testutil.PlannerAssert.assertSolutionInitialized;
 import static ai.timefold.solver.core.testutil.PlannerTestUtils.mockSolverScope;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -673,22 +674,35 @@ class SolverManagerTest {
 
         try (var solverManager = createDefaultSolverManager(solverConfig)) {
             var problem = PlannerTestUtils.generateTestdataSolution("s1");
+            var finalRunInfo = new AtomicReference<SolverRunInfo>();
+            var finalRunInfoConsumed = new CountDownLatch(1);
             var solverJob = solverManager.solveBuilder()
                     .withProblemId(2L)
                     .withProblem(problem)
+                    .withFinalBestSolutionEventConsumer(event -> {
+                        finalRunInfo.set(event.solverResult().solverRunInfo());
+                        finalRunInfoConsumed.countDown();
+                    })
                     .run();
 
-            solverJob.getFinalBestSolution();
+            var solverResult = solverJob.getFinalBestSolutionResult();
+            finalRunInfoConsumed.await();
+            var solverRunInfo = solverResult.solverRunInfo();
             // The score is calculated during the solving starting phase without applying any moves.
             // This explains why the count has one more unit.
             assertThat(solverJob.getScoreCalculationCount()).isEqualTo(5L);
             assertThat(solverJob.getMoveEvaluationCount()).isEqualTo(4L);
+            assertThat(solverRunInfo.terminationInfo().isTerminatedBy(SCORE_CALCULATION_COUNT)).isTrue();
+            assertThat(finalRunInfo.get().terminationInfo().isTerminatedBy(SCORE_CALCULATION_COUNT)).isTrue();
+            assertThat(solverRunInfo.scoreCalculationCount()).isEqualTo(5L);
+            assertThat(solverRunInfo.moveEvaluationCount()).isEqualTo(4L);
 
             // Score calculation speed and solve duration are non-deterministic.
             // On an exceptionally fast machine, getSolvingDuration() can return Duration.ZERO.
             // On an exceptionally slow machine, getScoreCalculationSpeed() can be 0 due to flooring
             // (i.e. by taking more than 5 seconds to finish solving).
             assertThat(solverJob.getSolvingDuration()).isGreaterThanOrEqualTo(Duration.ZERO);
+            assertThat(solverRunInfo.solvingDuration()).isGreaterThanOrEqualTo(Duration.ZERO);
             assertThat(solverJob.getScoreCalculationSpeed()).isNotNegative();
             assertThat(solverJob.getMoveEvaluationSpeed()).isNotNegative();
         }

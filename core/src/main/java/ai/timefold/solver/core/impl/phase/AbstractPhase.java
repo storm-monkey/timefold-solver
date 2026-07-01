@@ -79,6 +79,16 @@ public abstract class AbstractPhase<Solution_> implements Phase<Solution_> {
 
     public abstract PhaseType getPhaseType();
 
+    protected void recordPhaseTermination(AbstractPhaseScope<Solution_> phaseScope) {
+        if (isNested()) {
+            return;
+        }
+        var phaseTerminationInfo = phaseTermination.getPhaseTerminationInfo(phaseScope);
+        if (phaseTerminationInfo != null) {
+            phaseScope.getSolverScope().setSolverTerminationInfo(phaseTerminationInfo);
+        }
+    }
+
     // ************************************************************************
     // Lifecycle methods
     // ************************************************************************
